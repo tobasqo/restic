@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+from contextlib import _AsyncGeneratorContextManager, _GeneratorContextManager
 from json import JSONDecodeError
 from typing import TYPE_CHECKING, Generic
 
-from httpx import USE_CLIENT_DEFAULT, AsyncClient, HTTPStatusError
+from httpx import USE_CLIENT_DEFAULT, AsyncClient, HTTPStatusError, Response
 from httpx._models import Headers
 from pydantic import BaseModel, ValidationError
 
@@ -20,7 +21,7 @@ from restic.status_codes import HttpStatusCode
 if TYPE_CHECKING:
     from typing import Any, NoReturn
 
-    from httpx import Client, Response
+    from httpx import Client
     from httpx._client import UseClientDefault
     from httpx._types import HeaderTypes, QueryParamTypes, RequestData, RequestFiles
 
@@ -28,8 +29,13 @@ if TYPE_CHECKING:
 
 """
 TODOs:
-- request/response streaming
+- request streaming (content parameter)
+- consistent error handling
 """
+
+
+ResponseContextManager = _GeneratorContextManager[Response, None, None]
+ResponseAsyncContextManager = _AsyncGeneratorContextManager[Response, None]
 
 
 class BaseMixin:
@@ -71,6 +77,33 @@ class BaseMixin:
             **kwargs,
         )
 
+    def _stream_request(
+        self,
+        method: str,
+        path: str,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        json: Any | None = None,
+        params: QueryParamTypes | None = None,
+        headers: HeaderTypes | None = None,
+        follow_redirects: bool | UseClientDefault = USE_CLIENT_DEFAULT,
+        **kwargs,
+    ) -> ResponseContextManager:
+        self._logger.info("%s %s", method, path)
+        _headers = self._get_default_headers()
+        _headers.update(headers)
+        return self._session.stream(
+            method,
+            path,
+            data=data,
+            files=files,
+            json=json,
+            params=params,
+            headers=_headers,
+            follow_redirects=follow_redirects,
+            **kwargs,
+        )
+
     async def _async_send_request(
         self,
         method: str,
@@ -98,7 +131,33 @@ class BaseMixin:
             **kwargs,
         )
 
-    # noinspection PyMethodMayBeStatic
+    def _async_stream_request(
+        self,
+        method: str,
+        path: str,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        json: Any | None = None,
+        params: QueryParamTypes | None = None,
+        headers: HeaderTypes | None = None,
+        follow_redirects: bool | UseClientDefault = USE_CLIENT_DEFAULT,
+        **kwargs,
+    ) -> ResponseAsyncContextManager:
+        self._logger.info("%s %s", method, path)
+        _headers = self._get_default_headers()
+        _headers.update(headers)
+        return self._async_session.stream(
+            method,
+            path,
+            data=data,
+            files=files,
+            json=json,
+            params=params,
+            headers=_headers,
+            follow_redirects=follow_redirects,
+            **kwargs,
+        )
+
     def _get_default_headers(self) -> Headers:
         # TODO: update
         return Headers(
@@ -161,9 +220,15 @@ class GetMixin(ResultMixin):
         response = self._send_request(HttpMethod.GET.value, path)
         return self._handle_response(response, result_model_type)
 
+    def _stream_get(self, path: str) -> ResponseContextManager:
+        return self._stream_request(HttpMethod.GET.value, path)
+
     async def _async_get(self, path: str, result_model_type: type[TResultModel]) -> TResultModel:
         response = await self._async_send_request(HttpMethod.GET.value, path)
         return self._handle_response(response, result_model_type)
+
+    def _async_stream_get(self, path: str) -> ResponseAsyncContextManager:
+        return self._async_stream_request(HttpMethod.GET.value, path)
 
 
 class ListMixin(ResultMixin, Generic[TListResultModel]):
@@ -231,6 +296,15 @@ class UploadMixin(ResultMixin):
         response = self._send_request(method.value, path, json=request_data)
         return self._handle_response(response, result_model_type)
 
+    def _stream_upload(
+        self,
+        method: HttpMethod,
+        path: str,
+        model: BaseModel,
+    ) -> ResponseContextManager:
+        request_data = self._make_request_data(model)
+        return self._stream_request(method.value, path, json=request_data)
+
     async def _async_upload(
         self,
         method: HttpMethod,
@@ -241,6 +315,15 @@ class UploadMixin(ResultMixin):
         request_data = self._make_request_data(model)
         response = await self._async_send_request(method.value, path, json=request_data)
         return self._handle_response(response, result_model_type)
+
+    def _async_stream_upload(
+        self,
+        method: HttpMethod,
+        path: str,
+        model: BaseModel,
+    ) -> ResponseAsyncContextManager:
+        request_data = self._make_request_data(model)
+        return self._async_stream_request(method, path, json=request_data)
 
     @staticmethod
     def _make_request_data(model: BaseModel) -> Any:
@@ -256,6 +339,13 @@ class PostMixin(UploadMixin):
     ) -> TResultModel:
         return self._upload(HttpMethod.POST, path, model, result_model_type)
 
+    def _stream_post(
+        self,
+        path: str,
+        model: BaseModel,
+    ) -> ResponseContextManager:
+        return self._stream_upload(HttpMethod.POST, path, model)
+
     async def _async_post(
         self,
         path: str,
@@ -263,6 +353,13 @@ class PostMixin(UploadMixin):
         result_model_type: type[TResultModel],
     ) -> TResultModel:
         return await self._async_upload(HttpMethod.POST, path, model, result_model_type)
+
+    def _async_stream_post(
+        self,
+        path: str,
+        model: BaseModel,
+    ) -> ResponseAsyncContextManager:
+        return self._async_stream_upload(HttpMethod.POST, path, model)
 
 
 class PutMixin(UploadMixin):
@@ -274,6 +371,13 @@ class PutMixin(UploadMixin):
     ) -> TResultModel:
         return self._upload(HttpMethod.PUT, path, model, result_model_type)
 
+    async def _stream_put(
+        self,
+        path: str,
+        model: BaseModel,
+    ) -> ResponseContextManager:
+        return self._stream_upload(HttpMethod.PUT, path, model)
+
     async def _async_put(
         self,
         path: str,
@@ -281,6 +385,13 @@ class PutMixin(UploadMixin):
         result_model_type: type[TResultModel],
     ) -> TResultModel:
         return await self._async_upload(HttpMethod.PUT, path, model, result_model_type)
+
+    def _async_stream_put(
+        self,
+        path: str,
+        model: BaseModel,
+    ) -> ResponseAsyncContextManager:
+        return self._async_stream_upload(HttpMethod.PUT, path, model)
 
 
 class PatchMixin(UploadMixin):
@@ -292,6 +403,13 @@ class PatchMixin(UploadMixin):
     ) -> TResultModel:
         return self._upload(HttpMethod.PATCH, path, model, result_model_type)
 
+    def _stream_patch(
+        self,
+        path: str,
+        model: BaseModel,
+    ) -> ResponseContextManager:
+        return self._stream_upload(HttpMethod.PATCH, path, model)
+
     async def _async_patch(
         self,
         path: str,
@@ -299,6 +417,13 @@ class PatchMixin(UploadMixin):
         result_model_type: type[TResultModel],
     ) -> TResultModel:
         return await self._async_upload(HttpMethod.PATCH, path, model, result_model_type)
+
+    def _async_stream_patch(
+        self,
+        path: str,
+        model: BaseModel,
+    ) -> ResponseAsyncContextManager:
+        return self._async_stream_upload(HttpMethod.PATCH, path, model)
 
 
 class DeleteMixin(BaseMixin):
