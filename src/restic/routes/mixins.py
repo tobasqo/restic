@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from contextlib import _AsyncGeneratorContextManager, _GeneratorContextManager
 from json import JSONDecodeError
-from typing import TYPE_CHECKING, Generic
+from typing import TYPE_CHECKING
 
 from httpx import USE_CLIENT_DEFAULT, AsyncClient, HTTPStatusError, Response
 from httpx._models import Headers
@@ -15,7 +15,6 @@ from restic.exceptions import (
     ResticResponseSchemaError,
 )
 from restic.http_methods import HttpMethod
-from restic.routes._models import TListResultModel
 from restic.status_codes import HttpStatusCode
 
 if TYPE_CHECKING:
@@ -23,13 +22,12 @@ if TYPE_CHECKING:
 
     from httpx import Client
     from httpx._client import UseClientDefault
-    from httpx._types import HeaderTypes, QueryParamTypes, RequestData, RequestFiles
+    from httpx._types import HeaderTypes, QueryParamTypes, RequestContent, RequestData, RequestFiles
 
-    from restic.routes._models import TResultModel
+    from restic.routes._models import TListResultModel, TResultModel
 
 """
 TODOs:
-- request streaming (content parameter)
 - consistent error handling
 """
 
@@ -54,6 +52,8 @@ class BaseMixin:
         self,
         method: str,
         path: str,
+        *,
+        content: RequestContent | None = None,
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         json: Any | None = None,
@@ -68,6 +68,7 @@ class BaseMixin:
         return self._session.request(
             method,
             path,
+            content=content,
             data=data,
             files=files,
             json=json,
@@ -81,6 +82,8 @@ class BaseMixin:
         self,
         method: str,
         path: str,
+        *,
+        content: RequestContent | None = None,
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         json: Any | None = None,
@@ -95,6 +98,7 @@ class BaseMixin:
         return self._session.stream(
             method,
             path,
+            content=content,
             data=data,
             files=files,
             json=json,
@@ -108,6 +112,8 @@ class BaseMixin:
         self,
         method: str,
         path: str,
+        *,
+        content: RequestContent | None = None,
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         json: Any | None = None,
@@ -122,6 +128,7 @@ class BaseMixin:
         return await self._async_session.request(
             method,
             path,
+            content=content,
             data=data,
             files=files,
             json=json,
@@ -135,6 +142,8 @@ class BaseMixin:
         self,
         method: str,
         path: str,
+        *,
+        content: RequestContent | None = None,
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         json: Any | None = None,
@@ -149,6 +158,7 @@ class BaseMixin:
         return self._async_session.stream(
             method,
             path,
+            content=content,
             data=data,
             files=files,
             json=json,
@@ -231,7 +241,7 @@ class GetMixin(ResultMixin):
         return self._async_stream_request(HttpMethod.GET.value, path)
 
 
-class ListMixin(ResultMixin, Generic[TListResultModel]):
+class ListMixin(ResultMixin):
     def _get_list(
         self,
         path: str,
@@ -242,6 +252,14 @@ class ListMixin(ResultMixin, Generic[TListResultModel]):
         response = self._send_request(HttpMethod.GET.value, path, params=params_dict)
         return self._handle_list_response(response, list_result_model_type)
 
+    def _stream_get_list(
+        self,
+        path: str,
+        params: BaseModel | None = None,
+    ) -> ResponseContextManager:
+        params_dict = self._make_query_params(params)
+        return self._stream_request(HttpMethod.GET.value, path, params=params_dict)
+
     async def _async_get_list(
         self,
         path: str,
@@ -251,6 +269,14 @@ class ListMixin(ResultMixin, Generic[TListResultModel]):
         params_dict = self._make_query_params(params)
         response = await self._async_send_request(HttpMethod.GET.value, path, params=params_dict)
         return self._handle_list_response(response, list_result_model_type)
+
+    def _async_stream_get_list(
+        self,
+        path: str,
+        params: BaseModel | None = None,
+    ) -> ResponseAsyncContextManager:
+        params_dict = self._make_query_params(params)
+        return self._async_stream_request(HttpMethod.GET.value, path, params=params_dict)
 
     def _validate_list_result_model(
         self,
@@ -289,44 +315,90 @@ class UploadMixin(ResultMixin):
         self,
         method: HttpMethod,
         path: str,
-        model: BaseModel,
         result_model_type: type[TResultModel],
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> TResultModel:
-        request_data = self._make_request_data(model)
-        response = self._send_request(method.value, path, json=request_data)
+        request_json_data = self._make_request_json_data(model)
+        response = self._send_request(
+            method.value,
+            path,
+            content=content,
+            data=data,
+            files=files,
+            json=request_json_data,
+        )
         return self._handle_response(response, result_model_type)
 
     def _stream_upload(
         self,
         method: HttpMethod,
         path: str,
-        model: BaseModel,
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> ResponseContextManager:
-        request_data = self._make_request_data(model)
-        return self._stream_request(method.value, path, json=request_data)
+        request_json_data = self._make_request_json_data(model)
+        return self._stream_request(
+            method.value,
+            path,
+            content=content,
+            data=data,
+            files=files,
+            json=request_json_data,
+        )
 
     async def _async_upload(
         self,
         method: HttpMethod,
         path: str,
-        model: BaseModel,
         result_model_type: type[TResultModel],
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> TResultModel:
-        request_data = self._make_request_data(model)
-        response = await self._async_send_request(method.value, path, json=request_data)
+        request_json_data = self._make_request_json_data(model)
+        response = await self._async_send_request(
+            method.value,
+            path,
+            content=content,
+            data=data,
+            files=files,
+            json=request_json_data,
+        )
         return self._handle_response(response, result_model_type)
 
     def _async_stream_upload(
         self,
         method: HttpMethod,
         path: str,
-        model: BaseModel,
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> ResponseAsyncContextManager:
-        request_data = self._make_request_data(model)
-        return self._async_stream_request(method, path, json=request_data)
+        request_json_data = self._make_request_json_data(model)
+        return self._async_stream_request(
+            method,
+            path,
+            content=content,
+            data=data,
+            files=files,
+            json=request_json_data,
+        )
 
     @staticmethod
-    def _make_request_data(model: BaseModel) -> Any:
+    def _make_request_json_data(model: BaseModel | None) -> dict[str, Any] | None:
+        if model is None:
+            return None
         return model.model_dump(mode="json", exclude_unset=True, by_alias=True)
 
 
@@ -334,96 +406,234 @@ class PostMixin(UploadMixin):
     def _post(
         self,
         path: str,
-        model: BaseModel,
         result_model_type: type[TResultModel],
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> TResultModel:
-        return self._upload(HttpMethod.POST, path, model, result_model_type)
+        return self._upload(
+            HttpMethod.POST,
+            path,
+            result_model_type,
+            content=content,
+            data=data,
+            files=files,
+            model=model,
+        )
 
     def _stream_post(
         self,
         path: str,
-        model: BaseModel,
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> ResponseContextManager:
-        return self._stream_upload(HttpMethod.POST, path, model)
+        return self._stream_upload(
+            HttpMethod.POST,
+            path,
+            content=content,
+            data=data,
+            files=files,
+            model=model,
+        )
 
     async def _async_post(
         self,
         path: str,
-        model: BaseModel,
         result_model_type: type[TResultModel],
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> TResultModel:
-        return await self._async_upload(HttpMethod.POST, path, model, result_model_type)
+        return await self._async_upload(
+            HttpMethod.POST,
+            path,
+            result_model_type,
+            content=content,
+            data=data,
+            files=files,
+            model=model,
+        )
 
     def _async_stream_post(
         self,
         path: str,
-        model: BaseModel,
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> ResponseAsyncContextManager:
-        return self._async_stream_upload(HttpMethod.POST, path, model)
+        return self._async_stream_upload(
+            HttpMethod.POST,
+            path,
+            content=content,
+            data=data,
+            files=files,
+            model=model,
+        )
 
 
 class PutMixin(UploadMixin):
     def _put(
         self,
         path: str,
-        model: BaseModel,
         result_model_type: type[TResultModel],
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> TResultModel:
-        return self._upload(HttpMethod.PUT, path, model, result_model_type)
+        return self._upload(
+            HttpMethod.PUT,
+            path,
+            result_model_type,
+            content=content,
+            data=data,
+            files=files,
+            model=model,
+        )
 
     async def _stream_put(
         self,
         path: str,
-        model: BaseModel,
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> ResponseContextManager:
-        return self._stream_upload(HttpMethod.PUT, path, model)
+        return self._stream_upload(
+            HttpMethod.PUT,
+            path,
+            content=content,
+            data=data,
+            files=files,
+            model=model,
+        )
 
     async def _async_put(
         self,
         path: str,
-        model: BaseModel,
         result_model_type: type[TResultModel],
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> TResultModel:
-        return await self._async_upload(HttpMethod.PUT, path, model, result_model_type)
+        return await self._async_upload(
+            HttpMethod.PUT,
+            path,
+            result_model_type,
+            content=content,
+            data=data,
+            files=files,
+            model=model,
+        )
 
     def _async_stream_put(
         self,
         path: str,
-        model: BaseModel,
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> ResponseAsyncContextManager:
-        return self._async_stream_upload(HttpMethod.PUT, path, model)
+        return self._async_stream_upload(
+            HttpMethod.PUT,
+            path,
+            content=content,
+            data=data,
+            files=files,
+            model=model,
+        )
 
 
 class PatchMixin(UploadMixin):
     def _patch(
         self,
         path: str,
-        model: BaseModel,
         result_model_type: type[TResultModel],
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> TResultModel:
-        return self._upload(HttpMethod.PATCH, path, model, result_model_type)
+        return self._upload(
+            HttpMethod.PATCH,
+            path,
+            result_model_type,
+            content=content,
+            data=data,
+            files=files,
+            model=model,
+        )
 
     def _stream_patch(
         self,
         path: str,
-        model: BaseModel,
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> ResponseContextManager:
-        return self._stream_upload(HttpMethod.PATCH, path, model)
+        return self._stream_upload(
+            HttpMethod.PATCH,
+            path,
+            content=content,
+            data=data,
+            files=files,
+            model=model,
+        )
 
     async def _async_patch(
         self,
         path: str,
-        model: BaseModel,
         result_model_type: type[TResultModel],
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> TResultModel:
-        return await self._async_upload(HttpMethod.PATCH, path, model, result_model_type)
+        return await self._async_upload(
+            HttpMethod.PATCH,
+            path,
+            result_model_type,
+            content=content,
+            data=data,
+            files=files,
+            model=model,
+        )
 
     def _async_stream_patch(
         self,
         path: str,
-        model: BaseModel,
+        *,
+        content: RequestContent | None = None,
+        data: RequestData | None = None,
+        files: RequestFiles | None = None,
+        model: BaseModel | None = None,
     ) -> ResponseAsyncContextManager:
-        return self._async_stream_upload(HttpMethod.PATCH, path, model)
+        return self._async_stream_upload(
+            HttpMethod.PATCH,
+            path,
+            content=content,
+            data=data,
+            files=files,
+            model=model,
+        )
 
 
 class DeleteMixin(BaseMixin):

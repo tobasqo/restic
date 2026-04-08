@@ -55,10 +55,14 @@ class CreateRoute(PostMixin, _BaseRoute, Generic[TCreate, TCreateResult]):
     _create_result_model_type: type[TCreateResult]
 
     def create(self, model: TCreate) -> TCreateResult:
-        return self._post(self.path, model, self._create_result_model_type)
+        return self._post(self.path, model=model, result_model_type=self._create_result_model_type)
 
     async def async_create(self, model: TCreate) -> TCreateResult:
-        return await self._async_post(self.path, model, self._create_result_model_type)
+        return await self._async_post(
+            self.path,
+            model=model,
+            result_model_type=self._create_result_model_type,
+        )
 
 
 class UpdateRoute(PutMixin, _BaseRoute, Generic[TUpdate, TUpdateResult]):
@@ -69,7 +73,11 @@ class UpdateRoute(PutMixin, _BaseRoute, Generic[TUpdate, TUpdateResult]):
         resource_id: ResourceId,
         model: TUpdate,
     ) -> TUpdateResult:
-        return self._put(f"{self.path}/{resource_id}", model, self._update_result_model_type)
+        return self._put(
+            f"{self.path}/{resource_id}",
+            model=model,
+            result_model_type=self._update_result_model_type,
+        )
 
     async def async_update(
         self,
@@ -77,7 +85,9 @@ class UpdateRoute(PutMixin, _BaseRoute, Generic[TUpdate, TUpdateResult]):
         model: TUpdate,
     ) -> TUpdateResult:
         return await self._async_put(
-            f"{self.path}/{resource_id}", model, self._update_result_model_type
+            f"{self.path}/{resource_id}",
+            model=model,
+            result_model_type=self._update_result_model_type,
         )
 
 
@@ -94,7 +104,9 @@ class PartialUpdateRoute(
         model: TPartialUpdate,
     ) -> TPartialUpdateResult:
         return self._patch(
-            f"{self.path}/{resource_id}", model, self._partial_update_result_model_type
+            f"{self.path}/{resource_id}",
+            model=model,
+            result_model_type=self._partial_update_result_model_type,
         )
 
     async def async_partial_update(
@@ -103,7 +115,9 @@ class PartialUpdateRoute(
         model: TPartialUpdate,
     ) -> TPartialUpdateResult:
         return await self._async_patch(
-            f"{self.path}/{resource_id}", model, self._partial_update_result_model_type
+            f"{self.path}/{resource_id}",
+            model=model,
+            result_model_type=self._partial_update_result_model_type,
         )
 
 
