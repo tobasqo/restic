@@ -322,14 +322,14 @@ class UploadMixin(ResultMixin):
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
     ) -> TResultModel:
-        request_json_data = self._make_request_json_data(model)
+        json_data = self._make_request_json_data(model)
         response = self._send_request(
             method.value,
             path,
             content=content,
             data=data,
             files=files,
-            json=request_json_data,
+            json=json_data,
         )
         return self._handle_response(response, result_model_type)
 
@@ -343,14 +343,14 @@ class UploadMixin(ResultMixin):
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
     ) -> ResponseContextManager:
-        request_json_data = self._make_request_json_data(model)
+        json_data = self._make_request_json_data(model)
         return self._stream_request(
             method.value,
             path,
             content=content,
             data=data,
             files=files,
-            json=request_json_data,
+            json=json_data,
         )
 
     async def _async_upload(
@@ -364,14 +364,14 @@ class UploadMixin(ResultMixin):
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
     ) -> TResultModel:
-        request_json_data = self._make_request_json_data(model)
+        json_data = self._make_request_json_data(model)
         response = await self._async_send_request(
             method.value,
             path,
             content=content,
             data=data,
             files=files,
-            json=request_json_data,
+            json=json_data,
         )
         return self._handle_response(response, result_model_type)
 
@@ -385,14 +385,14 @@ class UploadMixin(ResultMixin):
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
     ) -> ResponseAsyncContextManager:
-        request_json_data = self._make_request_json_data(model)
+        json_data = self._make_request_json_data(model)
         return self._async_stream_request(
             method,
             path,
             content=content,
             data=data,
             files=files,
-            json=request_json_data,
+            json=json_data,
         )
 
     @staticmethod
