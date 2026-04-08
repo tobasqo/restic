@@ -1,6 +1,6 @@
 [project]
 name = "restic"
-version = "0.1.0a"
+version = "0.2.0"
 readme = "README.md"
 authors = [{ name = "tobasqo", email = "szymon.j.jaskowski@gmail.com" }]
 description = "A modern, type-safe Python library for building robust REST API clients with automatic Pydantic validation, async support, and extensible route patterns."
@@ -12,17 +12,17 @@ dependencies = [
   "typing-extensions>=4.15.0",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "Topic :: Internet :: WWW/HTTP",
-    "Topic :: Software Development :: Libraries :: Python Modules",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Internet :: WWW/HTTP",
+  "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
 [project.urls]
@@ -35,11 +35,7 @@ requires = ["uv_build>=0.9.2,<0.10.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
-dev = [
-    "mypy>=1.19.1",
-    "pre-commit>=4.5.1",
-    "ruff>=0.15.4",
-]
+dev = ["mypy>=1.19.1", "pre-commit>=4.5.1", "ruff>=0.15.4"]
 
 [[tool.uv.index]]
 name = "testpypi"
