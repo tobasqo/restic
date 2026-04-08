@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from typing import Any
+
+    from httpx import Response
     from pydantic import BaseModel
 
     from restic.status_codes import HttpStatusCode
@@ -17,8 +20,7 @@ class ResticInvalidUrlError(ResticError):
 
 
 class ResticInvalidJsonError(ResticError):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass
 
 
 class ResticResponseSchemaError(ResticError):
@@ -34,6 +36,7 @@ class ResticResponseSchemaError(ResticError):
 
 
 class ResticHttpError(ResticError):
-    def __init__(self, status_code: HttpStatusCode) -> None:
+    def __init__(self, status_code: HttpStatusCode, response: Response) -> None:
         super().__init__(status_code)
         self.status_code = status_code
+        self.response = response

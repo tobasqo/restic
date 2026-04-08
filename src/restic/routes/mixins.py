@@ -180,7 +180,7 @@ class BaseMixin:
         except HTTPStatusError as exc:
             status_code = HttpStatusCode.from_value(response.status_code)
             self._logger.exception("%d - %s", response.status_code, response.text)
-            raise ResticHttpError(status_code) from exc
+            raise ResticHttpError(status_code, response) from exc
 
     def _get_data_from_response(self, response: Response) -> Any:
         try:
