@@ -561,25 +561,16 @@ def test_users_routes(client: JSONPlaceholderClient) -> None:
 
 
 async def async_example(client: JSONPlaceholderClient) -> None:
-    # Get a post
     post = await client.posts.async_get(1)
     print(f"Post: {post}")
-
-    # List posts
     posts = await client.posts.async_get_list()
     print(f"Number of posts: {len(posts.results)}")
-
-    # Create a new post
     new_post = PostCreate(user_id=1, title="Test Post", body="This is a test")
     created_post = await client.posts.async_create(new_post)
     print(f"Created post: {created_post}")
-
-    # Update the post
     update_data = PostUpdate(id=post.id, user_id=1, title="Updated Title", body="Updated body")
     updated_post = await client.posts.async_update(post.id, update_data)
     print(f"Updated post: {updated_post}")
-
-    # Delete the post
     await client.posts.async_delete(created_post.id)
     print("Post deleted")
 
