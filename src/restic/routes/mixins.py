@@ -26,11 +26,6 @@ if TYPE_CHECKING:
 
     from restic.routes._models import TListResultModel, TResultModel
 
-"""
-TODOs:
-- consistent error handling
-"""
-
 
 ResponseContextManager = _GeneratorContextManager[Response, None, None]
 ResponseAsyncContextManager = _AsyncGeneratorContextManager[Response, None]
