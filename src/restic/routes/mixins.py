@@ -90,6 +90,7 @@ class BaseMixin:
         self._logger.info("%s %s", method, path)
         _headers = self._get_default_headers()
         _headers.update(headers)
+        # NOTE: requires checking response status by user
         return self._session.stream(
             method,
             path,
@@ -150,6 +151,7 @@ class BaseMixin:
         self._logger.info("%s %s", method, path)
         _headers = self._get_default_headers()
         _headers.update(headers)
+        # NOTE: requires checking response status by user
         return self._async_session.stream(
             method,
             path,
@@ -221,19 +223,41 @@ class ResultMixin(BaseMixin):
 
 
 class GetMixin(ResultMixin):
-    def _get(self, path: str, result_model_type: type[TResultModel]) -> TResultModel:
-        response = self._send_request(HttpMethod.GET.value, path)
+    def _get(
+        self,
+        path: str,
+        result_model_type: type[TResultModel],
+        *,
+        headers: HeaderTypes | None = None,
+    ) -> TResultModel:
+        response = self._send_request(HttpMethod.GET.value, path, headers=headers)
         return self._handle_response(response, result_model_type)
 
-    def _stream_get(self, path: str) -> ResponseContextManager:
-        return self._stream_request(HttpMethod.GET.value, path)
+    def _stream_get(
+        self,
+        path: str,
+        *,
+        headers: HeaderTypes | None = None,
+    ) -> ResponseContextManager:
+        return self._stream_request(HttpMethod.GET.value, path, headers=headers)
 
-    async def _async_get(self, path: str, result_model_type: type[TResultModel]) -> TResultModel:
-        response = await self._async_send_request(HttpMethod.GET.value, path)
+    async def _async_get(
+        self,
+        path: str,
+        result_model_type: type[TResultModel],
+        *,
+        headers: HeaderTypes | None = None,
+    ) -> TResultModel:
+        response = await self._async_send_request(HttpMethod.GET.value, path, headers=headers)
         return self._handle_response(response, result_model_type)
 
-    def _async_stream_get(self, path: str) -> ResponseAsyncContextManager:
-        return self._async_stream_request(HttpMethod.GET.value, path)
+    def _async_stream_get(
+        self,
+        path: str,
+        *,
+        headers: HeaderTypes | None = None,
+    ) -> ResponseAsyncContextManager:
+        return self._async_stream_request(HttpMethod.GET.value, path, headers=headers)
 
 
 class ListMixin(ResultMixin):
@@ -242,36 +266,59 @@ class ListMixin(ResultMixin):
         path: str,
         list_result_model_type: type[TListResultModel],
         params: BaseModel | None = None,
+        *,
+        headers: HeaderTypes | None = None,
     ) -> TListResultModel:
         params_dict = self._make_query_params(params)
-        response = self._send_request(HttpMethod.GET.value, path, params=params_dict)
+        response = self._send_request(
+            HttpMethod.GET.value,
+            path,
+            params=params_dict,
+            headers=headers,
+        )
         return self._handle_list_response(response, list_result_model_type)
 
     def _stream_get_list(
         self,
         path: str,
         params: BaseModel | None = None,
+        *,
+        headers: HeaderTypes | None = None,
     ) -> ResponseContextManager:
         params_dict = self._make_query_params(params)
-        return self._stream_request(HttpMethod.GET.value, path, params=params_dict)
+        return self._stream_request(HttpMethod.GET.value, path, params=params_dict, headers=headers)
 
     async def _async_get_list(
         self,
         path: str,
         list_result_model_type: type[TListResultModel],
         params: BaseModel | None = None,
+        *,
+        headers: HeaderTypes | None = None,
     ) -> TListResultModel:
         params_dict = self._make_query_params(params)
-        response = await self._async_send_request(HttpMethod.GET.value, path, params=params_dict)
+        response = await self._async_send_request(
+            HttpMethod.GET.value,
+            path,
+            params=params_dict,
+            headers=headers,
+        )
         return self._handle_list_response(response, list_result_model_type)
 
     def _async_stream_get_list(
         self,
         path: str,
         params: BaseModel | None = None,
+        *,
+        headers: HeaderTypes | None = None,
     ) -> ResponseAsyncContextManager:
         params_dict = self._make_query_params(params)
-        return self._async_stream_request(HttpMethod.GET.value, path, params=params_dict)
+        return self._async_stream_request(
+            HttpMethod.GET.value,
+            path,
+            params=params_dict,
+            headers=headers,
+        )
 
     def _validate_list_result_model(
         self,
@@ -316,6 +363,7 @@ class UploadMixin(ResultMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> TResultModel:
         json_data = self._make_request_json_data(model)
         response = self._send_request(
@@ -325,6 +373,7 @@ class UploadMixin(ResultMixin):
             data=data,
             files=files,
             json=json_data,
+            headers=headers,
         )
         return self._handle_response(response, result_model_type)
 
@@ -337,6 +386,7 @@ class UploadMixin(ResultMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> ResponseContextManager:
         json_data = self._make_request_json_data(model)
         return self._stream_request(
@@ -346,6 +396,7 @@ class UploadMixin(ResultMixin):
             data=data,
             files=files,
             json=json_data,
+            headers=headers,
         )
 
     async def _async_upload(
@@ -358,6 +409,7 @@ class UploadMixin(ResultMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> TResultModel:
         json_data = self._make_request_json_data(model)
         response = await self._async_send_request(
@@ -367,6 +419,7 @@ class UploadMixin(ResultMixin):
             data=data,
             files=files,
             json=json_data,
+            headers=headers,
         )
         return self._handle_response(response, result_model_type)
 
@@ -379,6 +432,7 @@ class UploadMixin(ResultMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> ResponseAsyncContextManager:
         json_data = self._make_request_json_data(model)
         return self._async_stream_request(
@@ -388,6 +442,7 @@ class UploadMixin(ResultMixin):
             data=data,
             files=files,
             json=json_data,
+            headers=headers,
         )
 
     @staticmethod
@@ -407,6 +462,7 @@ class PostMixin(UploadMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> TResultModel:
         return self._upload(
             HttpMethod.POST,
@@ -416,6 +472,7 @@ class PostMixin(UploadMixin):
             data=data,
             files=files,
             model=model,
+            headers=headers,
         )
 
     def _stream_post(
@@ -426,6 +483,7 @@ class PostMixin(UploadMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> ResponseContextManager:
         return self._stream_upload(
             HttpMethod.POST,
@@ -434,6 +492,7 @@ class PostMixin(UploadMixin):
             data=data,
             files=files,
             model=model,
+            headers=headers,
         )
 
     async def _async_post(
@@ -445,6 +504,7 @@ class PostMixin(UploadMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> TResultModel:
         return await self._async_upload(
             HttpMethod.POST,
@@ -454,6 +514,7 @@ class PostMixin(UploadMixin):
             data=data,
             files=files,
             model=model,
+            headers=headers,
         )
 
     def _async_stream_post(
@@ -464,6 +525,7 @@ class PostMixin(UploadMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> ResponseAsyncContextManager:
         return self._async_stream_upload(
             HttpMethod.POST,
@@ -472,6 +534,7 @@ class PostMixin(UploadMixin):
             data=data,
             files=files,
             model=model,
+            headers=headers,
         )
 
 
@@ -485,6 +548,7 @@ class PutMixin(UploadMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> TResultModel:
         return self._upload(
             HttpMethod.PUT,
@@ -494,6 +558,7 @@ class PutMixin(UploadMixin):
             data=data,
             files=files,
             model=model,
+            headers=headers,
         )
 
     async def _stream_put(
@@ -504,6 +569,7 @@ class PutMixin(UploadMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> ResponseContextManager:
         return self._stream_upload(
             HttpMethod.PUT,
@@ -512,6 +578,7 @@ class PutMixin(UploadMixin):
             data=data,
             files=files,
             model=model,
+            headers=headers,
         )
 
     async def _async_put(
@@ -523,6 +590,7 @@ class PutMixin(UploadMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> TResultModel:
         return await self._async_upload(
             HttpMethod.PUT,
@@ -532,6 +600,7 @@ class PutMixin(UploadMixin):
             data=data,
             files=files,
             model=model,
+            headers=headers,
         )
 
     def _async_stream_put(
@@ -542,6 +611,7 @@ class PutMixin(UploadMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> ResponseAsyncContextManager:
         return self._async_stream_upload(
             HttpMethod.PUT,
@@ -550,6 +620,7 @@ class PutMixin(UploadMixin):
             data=data,
             files=files,
             model=model,
+            headers=headers,
         )
 
 
@@ -563,6 +634,7 @@ class PatchMixin(UploadMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> TResultModel:
         return self._upload(
             HttpMethod.PATCH,
@@ -572,6 +644,7 @@ class PatchMixin(UploadMixin):
             data=data,
             files=files,
             model=model,
+            headers=headers,
         )
 
     def _stream_patch(
@@ -582,6 +655,7 @@ class PatchMixin(UploadMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> ResponseContextManager:
         return self._stream_upload(
             HttpMethod.PATCH,
@@ -590,6 +664,7 @@ class PatchMixin(UploadMixin):
             data=data,
             files=files,
             model=model,
+            headers=headers,
         )
 
     async def _async_patch(
@@ -601,6 +676,7 @@ class PatchMixin(UploadMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> TResultModel:
         return await self._async_upload(
             HttpMethod.PATCH,
@@ -610,6 +686,7 @@ class PatchMixin(UploadMixin):
             data=data,
             files=files,
             model=model,
+            headers=headers,
         )
 
     def _async_stream_patch(
@@ -620,6 +697,7 @@ class PatchMixin(UploadMixin):
         data: RequestData | None = None,
         files: RequestFiles | None = None,
         model: BaseModel | None = None,
+        headers: HeaderTypes | None = None,
     ) -> ResponseAsyncContextManager:
         return self._async_stream_upload(
             HttpMethod.PATCH,
@@ -628,16 +706,17 @@ class PatchMixin(UploadMixin):
             data=data,
             files=files,
             model=model,
+            headers=headers,
         )
 
 
 class DeleteMixin(BaseMixin):
     # TODO: allow for optional return type on delete
 
-    def _delete(self, path: str) -> None:
-        response = self._send_request(HttpMethod.DELETE.value, path)
+    def _delete(self, path: str, headers: HeaderTypes | None = None) -> None:
+        response = self._send_request(HttpMethod.DELETE.value, path, headers=headers)
         self._check_api_error(response)
 
-    async def _async_delete(self, path: str) -> None:
-        response = await self._async_send_request(HttpMethod.DELETE.value, path)
+    async def _async_delete(self, path: str, headers: HeaderTypes | None = None) -> None:
+        response = await self._async_send_request(HttpMethod.DELETE.value, path, headers=headers)
         self._check_api_error(response)
