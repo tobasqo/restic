@@ -113,7 +113,7 @@ ignore = [
   "PLR0913",
 ]
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["INP001"]
+"tests/*" = ["INP001", "SLF001"]
 
 [tool.mypy]
 python_version = "3.10"
@@ -127,3 +127,6 @@ init_forbid_extra = true
 init_typed = true
 warn_required_dynamic_aliases = false
 warn_untyped_fields = true
+
+[tool.pytest]
+log_format = "[%(levelname)8s] %(name)s - %(message)s"
