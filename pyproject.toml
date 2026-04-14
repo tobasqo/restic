@@ -112,6 +112,8 @@ ignore = [
   "TD003",
   "PLR0913",
 ]
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["INP001"]
 
 [tool.mypy]
 python_version = "3.10"
