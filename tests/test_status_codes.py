@@ -6,7 +6,7 @@ from restic.status_codes import HttpStatusCode
 
 @pytest.mark.parametrize(
     ("value", "phrase"),
-    [(code.value, code.phrase) for code in codes],
+    [(code.value, code.phrase) for code in codes],  # type: ignore[attr-defined]
 )
 def test_from_value(value: int, phrase: str) -> None:
     code = HttpStatusCode.from_value(value)
