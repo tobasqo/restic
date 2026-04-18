@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import httpx
 import pytest
 from httpx._status_codes import codes
 
+from restic.exceptions import ResticHttpError, ResticInvalidJsonError
 from restic.routes.mixins import BaseMixin
 
 if TYPE_CHECKING:
-    import httpx
-
     from tests.conftest import MockResponseFn
 
 
@@ -239,3 +239,174 @@ async def test_async_stream_request_post(
     ) as response:
         assert response.status_code == codes.ACCEPTED
         assert await response.aread() == b"accepted"
+
+
+# ============================================================================
+# Tests for _get_default_headers
+# ============================================================================
+
+
+def test_get_default_headers_returns_correct_headers(base_mixin: BaseMixin) -> None:
+    headers = base_mixin._get_default_headers()
+    assert headers["Content-Type"] == "application/json"
+    assert headers["Accept"] == "application/json"
+
+
+def test_get_default_headers_returns_headers_object(base_mixin: BaseMixin) -> None:
+    headers = base_mixin._get_default_headers()
+    assert isinstance(headers, httpx.Headers)
+
+
+# ============================================================================
+# Tests for _check_api_error
+# ============================================================================
+
+
+def test_check_api_error_no_error(base_mixin: BaseMixin, mock_response: MockResponseFn) -> None:
+    mock_response(json={})
+
+    response = base_mixin._send_request("GET", "/")
+    # Should not raise
+    base_mixin._check_api_error(response)
+
+
+@pytest.mark.parametrize(
+    "status_code",
+    [codes.BAD_REQUEST, codes.UNAUTHORIZED, codes.FORBIDDEN, codes.NOT_FOUND],
+)
+def test_check_api_error_client_error_raises(
+    base_mixin: BaseMixin, mock_response: MockResponseFn, status_code: int
+) -> None:
+    mock_response(status_code=status_code, json={"error": "error"})
+
+    response = base_mixin._send_request("GET", "/")
+    with pytest.raises(ResticHttpError):
+        base_mixin._check_api_error(response)
+
+
+@pytest.mark.parametrize(
+    "status_code",
+    [codes.INTERNAL_SERVER_ERROR, codes.BAD_GATEWAY, codes.SERVICE_UNAVAILABLE],
+)
+def test_check_api_error_server_error_raises(
+    base_mixin: BaseMixin, mock_response: MockResponseFn, status_code: int
+) -> None:
+    mock_response(status_code=status_code, json={"error": "server error"})
+
+    response = base_mixin._send_request("GET", "/")
+    with pytest.raises(ResticHttpError):
+        base_mixin._check_api_error(response)
+
+
+def test_check_api_error_includes_status_code(
+    base_mixin: BaseMixin, mock_response: MockResponseFn
+) -> None:
+    mock_response(status_code=codes.NOT_FOUND, json={"error": "not found"})
+
+    response = base_mixin._send_request("GET", "/")
+    with pytest.raises(ResticHttpError) as exc_info:
+        base_mixin._check_api_error(response)
+
+    assert exc_info.value.status_code.value == codes.NOT_FOUND
+
+
+# ============================================================================
+# Tests for _get_data_from_response
+# ============================================================================
+
+
+def test_get_data_from_response_valid_json(
+    base_mixin: BaseMixin, mock_response: MockResponseFn
+) -> None:
+    expected_data = {"key": "value", "nested": {"inner": 123}}
+
+    mock_response(json=expected_data)
+
+    response = base_mixin._send_request("GET", "/")
+    data = base_mixin._get_data_from_response(response)
+    assert data == expected_data
+
+
+def test_get_data_from_response_empty_json_object(
+    base_mixin: BaseMixin, mock_response: MockResponseFn
+) -> None:
+    mock_response(json={})
+
+    response = base_mixin._send_request("GET", "/")
+    data = base_mixin._get_data_from_response(response)
+    assert data == {}
+
+
+def test_get_data_from_response_json_array(
+    base_mixin: BaseMixin, mock_response: MockResponseFn
+) -> None:
+    expected_data = [1, 2, 3, {"key": "value"}]
+
+    mock_response(json=expected_data)
+
+    response = base_mixin._send_request("GET", "/")
+    data = base_mixin._get_data_from_response(response)
+    assert data == expected_data
+
+
+def test_get_data_from_response_invalid_json_raises(
+    base_mixin: BaseMixin, mock_response: MockResponseFn
+) -> None:
+    mock_response(content=b"not valid json {")
+
+    response = base_mixin._send_request("GET", "/")
+    with pytest.raises(ResticInvalidJsonError):
+        base_mixin._get_data_from_response(response)
+
+
+def test_get_data_from_response_invalid_json_error_message(
+    base_mixin: BaseMixin, mock_response: MockResponseFn
+) -> None:
+    invalid_content = "invalid json content"
+    mock_response(content=invalid_content.encode())
+
+    response = base_mixin._send_request("GET", "/")
+    with pytest.raises(ResticInvalidJsonError) as exc_info:
+        base_mixin._get_data_from_response(response)
+
+    assert str(exc_info.value) == invalid_content
+
+
+def test_get_data_from_response_null_json(
+    base_mixin: BaseMixin, mock_response: MockResponseFn
+) -> None:
+    mock_response(content=b"null")
+
+    response = base_mixin._send_request("GET", "/")
+    data = base_mixin._get_data_from_response(response)
+    assert data is None
+
+
+# ============================================================================
+# Tests for header merging behavior
+# ============================================================================
+
+
+def test_custom_headers_override_defaults(
+    base_mixin: BaseMixin, mock_response: MockResponseFn
+) -> None:
+    """Test that custom headers override default headers."""
+    mock_response(json={})
+
+    response = base_mixin._send_request("GET", "/", headers={"Content-Type": "text/plain"})
+
+    assert response.request.headers["Content-Type"] == "text/plain"
+
+
+def test_multiple_custom_headers_merged(
+    base_mixin: BaseMixin, mock_response: MockResponseFn
+) -> None:
+    custom_headers = {"Authorization": "Bearer token", "X-Custom": "value"}
+
+    mock_response(json={})
+
+    response = base_mixin._send_request("GET", "/", headers=custom_headers)
+
+    assert response.request.headers["Authorization"] == "Bearer token"
+    assert response.request.headers["X-Custom"] == "value"
+    assert response.request.headers["Content-Type"] == "application/json"
