@@ -88,3 +88,47 @@ def test_send_request_delete_method(base_mixin: BaseMixin, mock_response: MockRe
 
     response = base_mixin._send_request("DELETE", "/1")
     assert response.status_code == codes.NO_CONTENT
+
+
+# ============================================================================
+# Tests for _send_request - Negative scenarios (HTTP errors)
+# ============================================================================
+
+
+@pytest.mark.parametrize(
+    "status_code",
+    [
+        codes.BAD_REQUEST,
+        codes.UNAUTHORIZED,
+        codes.FORBIDDEN,
+        codes.NOT_FOUND,
+        codes.CONFLICT,
+    ],
+)
+def test_send_request_client_errors(
+    base_mixin: BaseMixin, mock_response: MockResponseFn, status_code: int
+) -> None:
+    mock_response(status_code=status_code, json={"error": "error message"})
+
+    response = base_mixin._send_request("GET", "/")
+    assert response.status_code == status_code
+
+
+@pytest.mark.parametrize(
+    "status_code",
+    [
+        codes.INTERNAL_SERVER_ERROR,
+        codes.BAD_GATEWAY,
+        codes.SERVICE_UNAVAILABLE,
+    ],
+)
+def test_send_request_server_errors(
+    base_mixin: BaseMixin, mock_response: MockResponseFn, status_code: int
+) -> None:
+    mock_response(
+        status_code=status_code,
+        json={"error": "server error"},
+    )
+
+    response = base_mixin._send_request("GET", "/")
+    assert response.status_code == status_code
