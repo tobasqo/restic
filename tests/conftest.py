@@ -1,9 +1,53 @@
+from __future__ import annotations
+
 import logging
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx
 import pytest
-from pytest_httpx import HTTPXMock
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from httpx import _types as httpx_types
+    from pytest_httpx import HTTPXMock
+
+
+BASE_URL = httpx.URL("https://example.com/test")
+
+
+class BuildRequestFn(Protocol):
+    def __call__(
+        self,
+        method: str = "GET",
+        url: httpx.URL | str = BASE_URL,
+        params: httpx_types.QueryParamTypes | None = None,
+        headers: httpx_types.HeaderTypes | None = None,
+        cookies: httpx_types.CookieTypes | None = None,
+        content: httpx_types.RequestContent | None = None,
+        data: httpx_types.RequestData | None = None,
+        files: httpx_types.RequestFiles | None = None,
+        json: Any | None = None,
+        stream: httpx_types.SyncByteStream | httpx_types.AsyncByteStream | None = None,
+        extensions: httpx_types.RequestExtensions | None = None,
+    ) -> httpx.Request: ...
+
+
+class BuildResponseFn(Protocol):
+    def __call__(
+        self,
+        status_code: int = 200,
+        headers: httpx_types.HeaderTypes | None = None,
+        content: httpx_types.ResponseContent | None = None,
+        text: str | None = None,
+        html: str | None = None,
+        json: Any = None,
+        stream: httpx_types.SyncByteStream | httpx_types.AsyncByteStream | None = None,
+        request: httpx.Request | None = None,
+        extensions: httpx_types.ResponseExtensions | None = None,
+        history: list[httpx.Response] | None = None,
+        default_encoding: str | Callable[[bytes], str] = "utf-8",
+    ) -> httpx.Response: ...
 
 
 class MockResponseFn(Protocol):
@@ -20,14 +64,75 @@ class MockResponseFn(Protocol):
     ) -> HTTPXMock: ...
 
 
-BASE_URL = httpx.URL("https://example.com/test")
-
-
 @pytest.fixture(scope="session", autouse=True)
 def _setup_logging() -> None:
     logging.basicConfig(level=logging.DEBUG)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+
+@pytest.fixture(name="build_request")
+def _build_request_fixture() -> BuildRequestFn:
+    def wrapper(
+        method: str = "GET",
+        url: httpx.URL | str = BASE_URL,
+        params: httpx_types.QueryParamTypes | None = None,
+        headers: httpx_types.HeaderTypes | None = None,
+        cookies: httpx_types.CookieTypes | None = None,
+        content: httpx_types.RequestContent | None = None,
+        data: httpx_types.RequestData | None = None,
+        files: httpx_types.RequestFiles | None = None,
+        json: Any | None = None,
+        stream: httpx_types.SyncByteStream | httpx_types.AsyncByteStream | None = None,
+        extensions: httpx_types.RequestExtensions | None = None,
+    ) -> httpx.Request:
+        return httpx.Request(
+            method=method,
+            url=url,
+            params=params,
+            headers=headers,
+            cookies=cookies,
+            content=content,
+            data=data,
+            files=files,
+            json=json,
+            stream=stream,
+            extensions=extensions,
+        )
+
+    return wrapper
+
+
+@pytest.fixture(name="build_response")
+def _build_response_fixture(build_request: BuildRequestFn) -> BuildResponseFn:
+    def wrapper(
+        status_code: int = 200,
+        headers: httpx_types.HeaderTypes | None = None,
+        content: httpx_types.ResponseContent | None = None,
+        text: str | None = None,
+        html: str | None = None,
+        json: Any = None,
+        stream: httpx_types.SyncByteStream | httpx_types.AsyncByteStream | None = None,
+        request: httpx.Request | None = None,
+        extensions: httpx_types.ResponseExtensions | None = None,
+        history: list[httpx.Response] | None = None,
+        default_encoding: str | Callable[[bytes], str] = "utf-8",
+    ) -> httpx.Response:
+        return httpx.Response(
+            status_code=status_code,
+            headers=headers,
+            content=content,
+            text=text,
+            html=html,
+            json=json,
+            stream=stream,
+            request=request or build_request(),
+            extensions=extensions,
+            history=history,
+            default_encoding=default_encoding,
+        )
+
+    return wrapper
 
 
 @pytest.fixture(name="mock_response")
