@@ -37,7 +37,7 @@ def test_send_request_post_with_json(base_mixin: BaseMixin, mock_response: MockR
 
 
 def test_send_request_with_params(base_mixin: BaseMixin, mock_response: MockResponseFn) -> None:
-    params = {"filter": "active", "limit": 10}
+    params: dict[str, Any] = {"filter": "active", "limit": 10}
     data: dict[str, Any] = {"results": []}
 
     mock_response(json=data)
@@ -98,7 +98,7 @@ def test_send_request_delete_method(base_mixin: BaseMixin, mock_response: MockRe
 def test_send_request_with_content(base_mixin: BaseMixin, mock_response: MockResponseFn) -> None:
     content = b"raw data"
 
-    mock_response(content=content)
+    mock_response(method="POST", content=content)
 
     response = base_mixin._send_request("POST", "/", content=content)
     assert response.status_code == codes.OK
@@ -108,7 +108,7 @@ def test_send_request_with_data(base_mixin: BaseMixin, mock_response: MockRespon
     request_data = {"key": "value"}
     response_data = {"received": True}
 
-    mock_response(json=response_data)
+    mock_response(method="POST", json=response_data)
 
     response = base_mixin._send_request("POST", "/", data=request_data)
     assert response.status_code == codes.OK
@@ -118,7 +118,7 @@ def test_send_request_with_data(base_mixin: BaseMixin, mock_response: MockRespon
 def test_send_request_with_files(base_mixin: BaseMixin, mock_response: MockResponseFn) -> None:
     files = {"file": ("filename.txt", b"file content")}
 
-    mock_response(json={"uploaded": True})
+    mock_response(method="POST", json={"uploaded": True})
 
     response = base_mixin._send_request("POST", "/", files=files)
     assert response.status_code == codes.OK
@@ -188,6 +188,30 @@ def test_send_request_server_errors(
         codes.MOVED_PERMANENTLY,
         codes.FOUND,
         codes.SEE_OTHER,
+        codes.TEMPORARY_REDIRECT,
+        codes.PERMANENT_REDIRECT,
+    ],
+)
+def test_check_api_error_redirects_follow_redirects(
+    base_mixin: BaseMixin, mock_response: MockResponseFn, status_code: int
+) -> None:
+    mock_response(
+        status_code=status_code, json={"redirect": True}, headers={"Location": "/redirect"}
+    ).add_response(json={"redirected": True})
+
+    response = base_mixin._send_request("GET", "/", follow_redirects=True)
+    # Should not raise since follow_redirects=True
+    base_mixin._check_api_error(response)
+
+
+@pytest.mark.parametrize(
+    "status_code",
+    [
+        codes.MOVED_PERMANENTLY,
+        codes.FOUND,
+        codes.SEE_OTHER,
+        codes.TEMPORARY_REDIRECT,
+        codes.PERMANENT_REDIRECT,
     ],
 )
 def test_check_api_error_redirects(
@@ -196,8 +220,9 @@ def test_check_api_error_redirects(
     mock_response(status_code=status_code, json={"redirect": True})
 
     response = base_mixin._send_request("GET", "/", follow_redirects=False)
-    # Should not raise since follow_redirects=False
-    base_mixin._check_api_error(response)
+    # Should raise since follow_redirects=False
+    with pytest.raises(ResticHttpError):
+        base_mixin._check_api_error(response)
 
 
 @pytest.mark.parametrize(
@@ -211,11 +236,11 @@ def test_check_api_error_redirects(
 def test_check_api_error_informational(
     base_mixin: BaseMixin, mock_response: MockResponseFn, status_code: int
 ) -> None:
-    mock_response(status_code=status_code, json={"info": True})
+    mock_response(status_code=status_code)
 
     response = base_mixin._send_request("GET", "/")
-    # Should not raise for 1xx codes
-    base_mixin._check_api_error(response)
+    with pytest.raises(ResticHttpError):
+        base_mixin._check_api_error(response)
 
 
 def test_check_api_error_includes_response_text(
@@ -229,7 +254,7 @@ def test_check_api_error_includes_response_text(
     with pytest.raises(ResticHttpError) as exc_info:
         base_mixin._check_api_error(response)
 
-    assert error_text in str(exc_info.value)
+    assert error_text in exc_info.value.response.text
 
 
 # ============================================================================
@@ -388,7 +413,7 @@ async def test_async_send_request_with_content(
 ) -> None:
     content = b"async raw data"
 
-    mock_response(content=content)
+    mock_response(method="POST", content=content)
 
     response = await base_mixin._async_send_request("POST", "/", content=content)
     assert response.status_code == codes.OK
@@ -401,7 +426,7 @@ async def test_async_send_request_with_data(
     request_data = {"async": "data"}
     response_data = {"received": True}
 
-    mock_response(json=response_data)
+    mock_response(method="POST", json=response_data)
 
     response = await base_mixin._async_send_request("POST", "/", data=request_data)
     assert response.status_code == codes.OK
@@ -415,7 +440,7 @@ async def test_async_send_request_with_files(
     files = {"async_file": ("async.txt", b"async content")}
     response_data = {"uploaded": True}
 
-    mock_response(json=response_data)
+    mock_response(method="POST", json=response_data)
 
     response = await base_mixin._async_send_request("POST", "/", files=files)
     assert response.status_code == codes.OK
@@ -717,9 +742,8 @@ def test_get_data_from_response_non_json_content_type(
     mock_response(content=str(json_data).encode(), headers={"Content-Type": "text/plain"})
 
     response = base_mixin._send_request("GET", "/")
-    # Should still parse if it's valid JSON, regardless of content-type
-    data = base_mixin._get_data_from_response(response)
-    assert data == json_data
+    with pytest.raises(ResticInvalidJsonError):
+        base_mixin._get_data_from_response(response)
 
 
 def test_get_data_from_response_empty_response_body(
