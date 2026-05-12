@@ -561,7 +561,7 @@ class PutMixin(UploadMixin):
             headers=headers,
         )
 
-    async def _stream_put(
+    def _stream_put(
         self,
         path: str,
         *,
